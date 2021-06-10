@@ -188,7 +188,7 @@ switch_jb_node_t *sort_nodes(switch_jb_node_t *list, int (*cmp)(const void *, co
 				e->prev = tail;
 
 				tail = e;
-			}
+			};
 
 			/* now p has stepped `insize' places along, and q has too */
 			p = q;
@@ -207,56 +207,11 @@ switch_jb_node_t *sort_nodes(switch_jb_node_t *list, int (*cmp)(const void *, co
 
 // static inline void thin_frames(switch_jb_t *jb, int freq, int max);
 
-
-static inline switch_jb_node_t *new_node(switch_jb_t *jb)
+static inline void sort_free_nodes(switch_jb_t *jb)
 {
-	switch_jb_node_t *np;
-
 	switch_mutex_lock(jb->list_mutex);
-
-	for (np = jb->node_list; np; np = np->next) {
-		if (!np->visible) {
-			break;
-		}
-	}
-
-	if (!np) {
-		int mult = 2;
-
-		if (jb->type != SJB_VIDEO) {
-			mult = 2;
-		} else {
-			if (jb->max_packet_len > mult) {
-				mult = jb->max_packet_len;
-			}
-		}
-
-		if (jb->allocated_nodes > jb->max_frame_len * mult) {
-			jb_debug(jb, 2, "ALLOCATED FRAMES TOO HIGH! %d\n", jb->allocated_nodes);
-			switch_jb_reset(jb);
-			switch_mutex_unlock(jb->list_mutex);
-			return NULL;
-		}
-		
-		np = switch_core_alloc(jb->pool, sizeof(*np));
-		jb->allocated_nodes++;
-		np->next = jb->node_list;
-		if (np->next) {
-			np->next->prev = np;
-		}
-		jb->node_list = np;
-
-	}
-
-	switch_assert(np);
-	np->bad_hits = 0;
-	np->visible = 1;
-	jb->visible_nodes++;
-	np->parent = jb;
-
+	jb->node_list = sort_nodes(jb->node_list, node_cmp);
 	switch_mutex_unlock(jb->list_mutex);
-
-	return np;
 }
 
 static inline void push_to_top(switch_jb_t *jb, switch_jb_node_t *node)
@@ -314,11 +269,91 @@ static inline void hide_node(switch_jb_node_t *node, switch_bool_t pop)
 	switch_mutex_unlock(jb->list_mutex);
 }
 
-static inline void sort_free_nodes(switch_jb_t *jb)
+static inline int drop_lower_seq(switch_jb_t *jb, uint32_t seq)
 {
+	switch_jb_node_t *np;
+	int x = 0;
+
 	switch_mutex_lock(jb->list_mutex);
-	jb->node_list = sort_nodes(jb->node_list, node_cmp);
+	for (np = jb->node_list; np; np = np->next) {
+		if (!np->visible) continue;
+
+		if (np->packet.header.seq < seq) {
+			hide_node(np, SWITCH_FALSE);
+			jb_debug(jb, 2, "Dropped packet %u - no longer needed\n",ntohs(np->packet.header.seq));
+			x++;
+		}
+	}
+
+	if (x) {
+		sort_free_nodes(jb);
+	}
+
 	switch_mutex_unlock(jb->list_mutex);
+
+	return x;
+}
+
+
+static inline switch_jb_node_t *new_node(switch_jb_t *jb)
+{
+	switch_jb_node_t *np;
+
+	switch_mutex_lock(jb->list_mutex);
+
+	begin:
+
+	for (np = jb->node_list; np; np = np->next) {
+		if (!np->visible) {
+			break;
+		}
+	}
+
+	if (!np) {
+		int mult = 2;
+		int dropped = 0;
+
+		if (jb->type != SJB_VIDEO) {
+			mult = 2;
+		} else {
+			if (jb->max_packet_len > mult) {
+				mult = jb->max_packet_len;
+			}
+		}
+
+		if (jb->allocated_nodes > jb->max_frame_len * mult) {
+			jb_debug(jb, 2, "ALLOCATED FRAMES TOO HIGH! %d\n", jb->allocated_nodes);
+			if (jb->type == SJB_VIDEO){
+			    switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(jb->session), SWITCH_LOG_DEBUG, "Allocated frames too high. Need to clean rubish packets %d / %d / %d / %d\n", jb->allocated_nodes,jb->max_frame_len,mult,jb->visible_nodes);
+			}
+
+			dropped = drop_lower_seq(jb, jb->target_seq);
+			switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(jb->session), SWITCH_LOG_DEBUG, "Dropped %d rubish packets. Target sequence: %u , New Visible Count: %d\n",dropped,ntohs(jb->target_seq),jb->visible_nodes);
+			
+			if (dropped > 0) {
+				goto begin;
+			}
+		}
+		
+		np = switch_core_alloc(jb->pool, sizeof(*np));
+		jb->allocated_nodes++;
+		np->next = jb->node_list;
+		if (np->next) {
+			np->next->prev = np;
+		}
+		jb->node_list = np;
+
+	}
+
+	switch_assert(np);
+	np->bad_hits = 0;
+	np->visible = 1;
+	jb->visible_nodes++;
+	np->parent = jb;
+
+	switch_mutex_unlock(jb->list_mutex);
+
+	return np;
 }
 
 static inline void hide_nodes(switch_jb_t *jb)
@@ -460,9 +495,6 @@ static inline void drop_newest_frame(switch_jb_t *jb)
 	jb_debug(jb, 1, "Dropping highest frame ts:%u\n", ntohl(ts));
 }
 
-
-
-
 static inline switch_jb_node_t *jb_find_penultimate_node(switch_jb_t *jb)
 {
 	switch_jb_node_t *np, *highest = NULL, *second_highest = NULL;
@@ -533,7 +565,6 @@ static void jb_frame_inc_line(switch_jb_t *jb, int i, int line)
 
 #define jb_frame_inc(_jb, _i) jb_frame_inc_line(_jb, _i, __LINE__)
 
-
 static inline void jb_miss(switch_jb_t *jb)
 {
 	jb->period_miss_count++;
@@ -590,8 +621,6 @@ static inline void drop_oldest_frame(switch_jb_t *jb)
 	drop_ts(jb, ts);
 	jb_debug(jb, 1, "Dropping oldest frame ts:%u\n", ntohl(ts));
 }
-
-
 
 #if 0
 static inline void drop_second_newest_frame(switch_jb_t *jb)
@@ -653,22 +682,22 @@ static inline void add_node(switch_jb_t *jb, switch_rtp_packet_t *packet, switch
 
 	if (jb->write_init && jb->type == SJB_VIDEO) {
 		int seq_diff = 0, ts_diff = 0;
-
+		
 		if (ntohs(jb->highest_wrote_seq) > (USHRT_MAX - 100) && ntohs(packet->header.seq) < 100) {
 			seq_diff = (USHRT_MAX - ntohs(jb->highest_wrote_seq)) + ntohs(packet->header.seq);
 		} else {
-			seq_diff = abs(((int)ntohs(packet->header.seq) - ntohs(jb->highest_wrote_seq)));
+		        seq_diff = abs(((int)ntohs(packet->header.seq) - ntohs(jb->highest_wrote_seq)));
 		}
 
 		if (ntohl(jb->highest_wrote_ts) > (UINT_MAX - 1000) && ntohl(node->packet.header.ts) < 1000) {
-			ts_diff = (UINT_MAX - ntohl(node->packet.header.ts)) + ntohl(node->packet.header.ts);
+		        ts_diff = (UINT_MAX - ntohl(node->packet.header.ts)) + ntohl(node->packet.header.ts);
 		} else {
-			ts_diff = abs((int)((int64_t)ntohl(node->packet.header.ts) - (int64_t)ntohl(jb->highest_wrote_ts)));
+		        ts_diff = abs((int)((int64_t)ntohl(node->packet.header.ts) - (int64_t)ntohl(jb->highest_wrote_ts)));
 		}
 
 		if (((seq_diff >= 100) || (ts_diff > (900000 * 5)))) {
-			jb_debug(jb, 2, "CHANGE DETECTED, PUNT %u\n", abs(((int)ntohs(packet->header.seq) - ntohs(jb->highest_wrote_seq))));
-			switch_jb_reset(jb);
+		        jb_debug(jb, 2, "CHANGE DETECTED, PUNT %u\n", abs(((int)ntohs(packet->header.seq) - ntohs(jb->highest_wrote_seq))));
+		        switch_jb_reset(jb);
 		}
 	}
 
@@ -681,6 +710,7 @@ static inline void add_node(switch_jb_t *jb, switch_rtp_packet_t *packet, switch
 		jb->packet_count++;
 		
 		if (jb->write_init && check_seq(packet->header.seq, jb->highest_wrote_seq) && check_ts(node->packet.header.ts, jb->highest_wrote_ts)) {
+
 			jb_debug(jb, 2, "WRITE frame ts: %u complete=%u/%u n:%u\n", ntohl(node->packet.header.ts), jb->complete_frames , jb->frame_len, jb->visible_nodes);
 			jb->highest_wrote_ts = packet->header.ts;
 			jb->complete_frames++;
@@ -790,7 +820,6 @@ static inline switch_status_t jb_next_packet_by_seq(switch_jb_t *jb, switch_jb_n
 						jb->dropped++;
 						drop_ts(jb, node->packet.header.ts);
 						jb->highest_dropped_ts = ntohl(node->packet.header.ts);
-
 
 						if (jb->period_miss_count > 2 && jb->period_miss_inc < 1) {
 							jb->period_miss_inc++;
@@ -1273,7 +1302,7 @@ SWITCH_DECLARE(switch_status_t) switch_jb_put_packet(switch_jb_t *jb, switch_rtp
 				}
 			}
 		}
-
+		
 		if (got >= want || (want - got) > 1000) {
 			jb->next_seq = htons(got + 1);
 		}
@@ -1464,6 +1493,7 @@ SWITCH_DECLARE(switch_status_t) switch_jb_get_packet(switch_jb_t *jb, switch_rtp
 		memcpy(packet->body, node->packet.body, node->len);
 		packet->header.version = 2;
 		hide_node(node, SWITCH_TRUE);
+
 
 		jb_debug(jb, 2, "GET packet ts:%u seq:%u %s\n", ntohl(packet->header.ts), ntohs(packet->header.seq), packet->header.m ? " <MARK>" : "");
 
