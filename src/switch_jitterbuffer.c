@@ -774,7 +774,6 @@ static inline switch_status_t jb_next_packet_by_seq(switch_jb_t *jb, switch_jb_n
 		if (jb->type == SJB_VIDEO) {
 
 			if (jb->session) {
-				switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(jb->session), SWITCH_LOG_DEBUG, "MISSING desired seq: %u. Ignore it and request video refresh\n", ntohs(jb->target_seq));
 				switch_core_session_request_video_refresh(jb->session);
 			}
 
