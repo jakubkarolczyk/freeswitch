@@ -4781,7 +4781,7 @@ SWITCH_DECLARE(switch_status_t) switch_rtp_set_video_buffer_size(switch_rtp_t *r
 	    else {
 		max_frames = MIN_VIDEO_BUFFER_SIZE_FACTOR;
 	    }
-	    switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(rtp_session->session), SWITCH_LOG_INFO, "JDK Set video buffer to %d\n", max_frames);
+	    switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(rtp_session->session), SWITCH_LOG_DEBUG, "Set video buffer to %d\n", max_frames);
 	}
 
 	rtp_session->last_max_vb_frames = max_frames;
