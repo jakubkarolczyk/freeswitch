@@ -926,9 +926,7 @@ SWITCH_DECLARE(void) switch_jb_reset(switch_jb_t *jb)
 	
 	jb_debug(jb, 2, "%s", "RESET BUFFER\n");
 
-	if (jb->type == SJB_VIDEO){
-	    switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(jb->session), SWITCH_LOG_DEBUG, "Reset JB Buffer\n");
-	}
+	switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(jb->session), SWITCH_LOG_DEBUG, "Reset JB Buffer\n");
 
 	switch_mutex_lock(jb->mutex);
 	hide_nodes(jb);
@@ -1251,7 +1249,7 @@ SWITCH_DECLARE(switch_status_t) switch_jb_put_packet(switch_jb_t *jb, switch_rtp
 
 		    if (got - want > jb->max_frame_len) {
 			minwant = got - jb->max_frame_len;
-			switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(jb->session), SWITCH_LOG_DEBUG, "Non-ucycle Missed more frames than buffer size. Shift want seq from %d to %d\n",want,minwant);
+			jb_debug(jb, 2, "Non-ucycle Missed more frames than buffer size. Shift want seq from %d to %d\n",want,minwant);
 		    } else {
 			minwant = want;
 		    }
@@ -1275,7 +1273,7 @@ SWITCH_DECLARE(switch_status_t) switch_jb_put_packet(switch_jb_t *jb, switch_rtp
 
 		    if (subgotwant > jb->max_frame_len) {
 			minwant = got - jb->max_frame_len;
-			switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(jb->session), SWITCH_LOG_DEBUG, "Ucycle Missed more frames than buffer size. Shift want seq from %d to %d\n",want,minwant);
+			jb_debug(jb, 2, "Ucycle Missed more frames than buffer size. Shift want seq from %d to %d\n",want,minwant);
 		    } else {
 			minwant = want;
 		    }
