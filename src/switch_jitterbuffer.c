@@ -931,8 +931,6 @@ SWITCH_DECLARE(void) switch_jb_reset(switch_jb_t *jb)
 	
 	jb_debug(jb, 2, "%s", "RESET BUFFER\n");
 
-	switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(jb->session), SWITCH_LOG_DEBUG, "Reset JB Buffer\n");
-
 	switch_mutex_lock(jb->mutex);
 	hide_nodes(jb);
 	switch_mutex_unlock(jb->mutex);
