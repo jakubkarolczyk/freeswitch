@@ -1,3 +1,10 @@
+freeswitch (1.10.7~git926b3e0) unstable; urgency=low
+
+  * Includes fixes for video Jitter Buffer
+  * Hardcoded settings for mod_av
+
+ -- Jakub Karolczyk <karolczyk.jakub@gmail.com>  Thu, 17 Jun 2021 10:00:00 +0000
+
 freeswitch (1.2~rc2-1) unstable; urgency=low
 
   * Bump version.

@@ -30,7 +30,7 @@ lang_dir="../conf/vanilla/lang"
 fs_description="FreeSWITCH is a scalable open source cross-platform telephony platform designed to route and interconnect popular communication protocols using audio, video, text or any other form of media."
 mod_build_depends="." mod_depends="." mod_recommends="." mod_suggests="."
 supported_debian_distros="wheezy jessie stretch buster sid"
-supported_ubuntu_distros="trusty utopic xenial"
+supported_ubuntu_distros="trusty utopic xenial focal"
 supported_distros="$supported_debian_distros $supported_ubuntu_distros"
 avoid_mods=(
   applications/mod_sms_flowroute
@@ -325,7 +325,7 @@ Build-Depends:
 # configure options
  libssl1.0-dev | libssl-dev, unixodbc-dev, libpq-dev,
  libncurses5-dev, libjpeg62-turbo-dev | libjpeg-turbo8-dev | libjpeg62-dev | libjpeg8-dev,
- python-dev, python-all-dev, python-support (>= 0.90) | dh-python, erlang-dev, libtpl-dev (>= 1.5),
+ libtpl-dev (>= 1.5),
 # documentation
  doxygen,
 # for APR (not essential for build)
@@ -359,7 +359,7 @@ Description: Cross-Platform Scalable Multi-Protocol Soft Switch
 
 Package: freeswitch
 Architecture: amd64 armhf
-Depends: \${shlibs:Depends}, \${perl:Depends}, \${misc:Depends},
+Depends: \${shlibs:Depends}, \${misc:Depends},
  libfreeswitch1 (= \${binary:Version})
 Recommends:
 Suggests: freeswitch-dbg
@@ -379,24 +379,6 @@ Description: Cross-Platform Scalable Multi-Protocol Soft Switch
  $(debian_wrap "${fs_description}")
  .
  This package contains the FreeSWITCH core library.
-
-Package: python-esl
-Section: python
-Architecture: amd64 armhf
-Depends: \${shlibs:Depends}, \${misc:Depends}, \${python:Depends}
-Description: Cross-Platform Scalable Multi-Protocol Soft Switch
- $(debian_wrap "${fs_description}")
- .
- This package contains the Python binding for FreeSWITCH Event Socket Library (ESL).
-
-Package: libesl-perl
-Section: perl
-Architecture: amd64 armhf
-Depends: \${shlibs:Depends}, \${misc:Depends}, \${perl:Depends}
-Description: Cross-Platform Scalable Multi-Protocol Soft Switch
- $(debian_wrap "${fs_description}")
- .
- This package contains the Perl binding for FreeSWITCH Event Socket Library (ESL).
 
 Package: freeswitch-meta-bare
 Architecture: amd64 armhf
@@ -682,8 +664,6 @@ Depends: \${misc:Depends}, freeswitch (= \${binary:Version}),
  freeswitch-mod-tone-stream (= \${binary:Version}),
  freeswitch-mod-java (= \${binary:Version}),
  freeswitch-mod-lua (= \${binary:Version}),
- freeswitch-mod-perl (= \${binary:Version}),
- freeswitch-mod-python (= \${binary:Version}),
  freeswitch-mod-yaml (= \${binary:Version}),
  freeswitch-mod-console (= \${binary:Version}),
  freeswitch-mod-logfile (= \${binary:Version}),
@@ -921,8 +901,6 @@ Depends: \${misc:Depends}, freeswitch (= \${binary:Version}),
  freeswitch-mod-tone-stream-dbg (= \${binary:Version}),
  freeswitch-mod-java-dbg (= \${binary:Version}),
  freeswitch-mod-lua-dbg (= \${binary:Version}),
- freeswitch-mod-perl-dbg (= \${binary:Version}),
- freeswitch-mod-python-dbg (= \${binary:Version}),
  freeswitch-mod-yaml-dbg (= \${binary:Version}),
  freeswitch-mod-console-dbg (= \${binary:Version}),
  freeswitch-mod-logfile-dbg (= \${binary:Version}),
@@ -1239,13 +1217,6 @@ genlang () {
   test -f $f.tmpl && cat $f.tmpl >> $f
 }
 
-geninstall_perl () {
-  local archlib
-  eval `perl -V:archlib`
-  echo $archlib/ESL.\* >libesl-perl.install
-  echo $archlib/ESL/\*.\* >>libesl-perl.install
-}
-
 accumulate_mod_deps () {
   local x=""
   # build-depends
@@ -1481,7 +1452,6 @@ echo "Generating debian/ (modules)..." >&2
 map_modules "mod_filter" \
   "gencontrol_per_cat" \
   "gencontrol_per_mod geninstall_per_mod genoverrides_per_mod"
-geninstall_perl
 
 if [ ${use_sysvinit} = "true" ]; then
   echo -n freeswitch-sysvinit >freeswitch-init.provided_by
